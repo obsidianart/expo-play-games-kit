@@ -28,7 +28,10 @@
     "recall-api",
     "play-level-up"
   ],
-  "repository": "https://github.com/obsidianart/expo-play-games-kit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/obsidianart/expo-play-games-kit.git"
+  },
   "bugs": {
     "url": "https://github.com/obsidianart/expo-play-games-kit/issues"
   },
