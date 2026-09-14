@@ -1,6 +1,8 @@
 package expo.modules.playgameskit
 
 import android.app.Activity
+import android.content.Context
+import android.content.pm.PackageManager
 import com.google.android.gms.games.PlayGames
 import com.google.android.gms.games.PlayGamesSdk
 import com.google.android.gms.games.Player
@@ -38,7 +40,14 @@ class PlayGamesKitModule : Module() {
     OnCreate {
       // Required by Play Games Services v2 before any client is used. Safe to
       // call more than once; automatic sign-in is triggered by the SDK itself.
-      appContext.reactContext?.let { PlayGamesSdk.initialize(it) }
+      //
+      // Only when the app actually carries an APP_ID: a multi-brand app can
+      // link this module into every variant while only some are configured
+      // (the config plugin adds the meta-data per variant), and an app aimed
+      // at under-13 players must not start Play Games Services at all.
+      appContext.reactContext?.let { context ->
+        if (hasPlayGamesAppId(context)) PlayGamesSdk.initialize(context)
+      }
     }
 
     AsyncFunction("isAuthenticated") { promise: Promise ->
@@ -119,6 +128,15 @@ class PlayGamesKitModule : Module() {
   private fun requireActivity(): Activity =
     appContext.currentActivity ?: throw MissingActivityException()
 
+  /** True when the manifest carries the `com.google.android.gms.games.APP_ID` meta-data. */
+  private fun hasPlayGamesAppId(context: Context): Boolean =
+    try {
+      val info = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
+      !info.metaData?.getString(APP_ID_META_DATA).isNullOrBlank()
+    } catch (e: PackageManager.NameNotFoundException) {
+      false
+    }
+
   private fun resolveAuthState(activity: Activity, promise: Promise, emitEvent: Boolean = false) {
     PlayGames.getPlayersClient(activity).currentPlayer
       .addOnSuccessListener { player ->
@@ -144,5 +162,6 @@ class PlayGamesKitModule : Module() {
 
   companion object {
     private const val RC_ACHIEVEMENT_UI = 9003
+    private const val APP_ID_META_DATA = "com.google.android.gms.games.APP_ID"
   }
 }
