@@ -1,0 +1,53 @@
+name: Publish
+
+# Publishes to npm via trusted publishing (OIDC) — no npm token anywhere.
+# Trigger: push a tag `vX.Y.Z` whose version matches package.json.
+#
+# One-time setup on npmjs.com → package → Settings → Trusted publisher:
+#   Organization or user: obsidianart
+#   Repository:           expo-play-games-kit
+#   Workflow filename:    publish.yml
+#   Environment name:     (leave empty)
+# All four are case-sensitive. The package has to exist on npm before this
+# can be configured, so the very first version is published by hand
+# (see RELEASING.md).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write # OIDC token for npm trusted publishing
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      # Trusted publishing needs npm >= 11.5.1; Node 22 bundles an older npm.
+      - run: npm install -g npm@latest
+      - run: npm --version
+
+      - name: Check tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag v$TAG does not match package.json version $PKG" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint -- --max-warnings 0
+
+      - run: npm publish --provenance --access public
