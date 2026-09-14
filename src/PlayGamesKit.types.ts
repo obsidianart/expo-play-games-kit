@@ -10,10 +10,23 @@ export type PlayGamesKitCapabilities = {
   incrementalAchievements: boolean;
   /** Android only: exchange the Play Games session for a server auth code. */
   serverSideAccess: boolean;
-  /** Google Play Games Game Stats API (planned, Android only). */
+  /** Android only: Google Play Games Game Stats API (games-v2 22.0.0+). */
   gameStats: boolean;
-  /** Google Play Games Recall API (planned, Android only). */
+  /** Android only: Google Play Games Recall API (seamless restore). */
   recall: boolean;
+};
+
+/**
+ * Properties of a Game Stats event. Numbers are sent as INT when integral
+ * and as DOUBLE otherwise, matching the property types declared in the
+ * stat schema uploaded to Play Console. At most 25 properties per event.
+ */
+export type GameEventProperties = Record<string, string | number | boolean>;
+
+/** A Game Stats event: an event name from your schema plus its properties. */
+export type GameEvent = {
+  name: string;
+  properties?: GameEventProperties;
 };
 
 export type PlayerInfo = {

@@ -44,6 +44,14 @@ class PlayGamesKitModule extends NativeModule<PlayGamesKitModuleEvents> {
   async setAchievementSteps(): Promise<void> {}
 
   async showAchievements(): Promise<void> {}
+
+  async recordGameEvents(): Promise<void> {}
+
+  async uploadGameEvents(): Promise<void> {}
+
+  async requestRecallAccess(): Promise<string> {
+    throw new Error('requestRecallAccess is not available on web');
+  }
 }
 
 export default registerWebModule(PlayGamesKitModule, 'PlayGamesKit');

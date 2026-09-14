@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import {
   AchievementId,
   AuthState,
+  GameEvent,
+  GameEventProperties,
   PlayerInfo,
   PlayGamesKitCapabilities,
 } from './PlayGamesKit.types';
@@ -119,6 +121,53 @@ export async function setAchievementSteps(
 /** Show the platform's native achievements UI. */
 export function showAchievements(): Promise<void> {
   return PlayGamesKitModule.showAchievements();
+}
+
+/**
+ * Record Game Stats events (Android, games-v2 22.0.0+). Event names and
+ * property keys must match the stat schema uploaded to Play Console; the SDK
+ * validates them and drops what it does not know. Resolves as a no-op where
+ * `capabilities.gameStats` is false. Record events as they happen — Google
+ * asks for immediate submission — and call {@link uploadGameEvents} at a
+ * quiet moment (end of a level, app going to background).
+ */
+export async function recordGameEvents(events: GameEvent[]): Promise<void> {
+  if (!PlayGamesKitModule.capabilities.gameStats || events.length === 0) {
+    return;
+  }
+  return PlayGamesKitModule.recordGameEvents(events);
+}
+
+/** Record a single Game Stats event — see {@link recordGameEvents}. */
+export function recordGameEvent(name: string, properties: GameEventProperties = {}): Promise<void> {
+  return recordGameEvents([{ name, properties }]);
+}
+
+/**
+ * The Game Stats progression event. Send it at launch and whenever the
+ * player's primary progression moves (level reached, chapter, rank);
+ * `currentProgress` is the value your progression stat displays.
+ */
+export function recordProgress(currentProgress: number | string): Promise<void> {
+  return recordGameEvent('progressUpdate', { currentProgress });
+}
+
+/** Ask the SDK to upload the events recorded so far. No-op off Android. */
+export async function uploadGameEvents(): Promise<void> {
+  if (!PlayGamesKitModule.capabilities.gameStats) {
+    return;
+  }
+  return PlayGamesKitModule.uploadGameEvents();
+}
+
+/**
+ * Android only: a Recall session id. Send it to your backend, which calls the
+ * Play Games Services REST API (`recall.linkPersona` / `recall.retrieveTokens`)
+ * to tie the Play Games player to your own account — that is what makes
+ * "seamless restore" seamless on a new device. Rejects on iOS and web.
+ */
+export function requestRecallAccess(): Promise<string> {
+  return PlayGamesKitModule.requestRecallAccess();
 }
 
 /**

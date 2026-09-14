@@ -2,6 +2,7 @@ import { NativeModule, requireNativeModule } from 'expo';
 
 import {
   AuthState,
+  GameEvent,
   PlayerInfo,
   PlayGamesKitCapabilities,
   PlayGamesKitModuleEvents,
@@ -18,6 +19,11 @@ declare class PlayGamesKitModule extends NativeModule<PlayGamesKitModuleEvents> 
   incrementAchievement(achievementId: string, steps: number, totalSteps: number): Promise<void>;
   setAchievementSteps(achievementId: string, steps: number, totalSteps: number): Promise<void>;
   showAchievements(): Promise<void>;
+  // Android only — the JS layer gates these on `capabilities`, so the iOS
+  // module does not declare them.
+  recordGameEvents(events: GameEvent[]): Promise<void>;
+  uploadGameEvents(): Promise<void>;
+  requestRecallAccess(): Promise<string>;
 }
 
 export default requireNativeModule<PlayGamesKitModule>('PlayGamesKit');

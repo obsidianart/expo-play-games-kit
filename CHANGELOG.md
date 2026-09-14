@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-09-14
+
+- Android: **Game Stats API** — `recordGameEvent`, `recordGameEvents`, `recordProgress`, `uploadGameEvents` over `PlayGames.getGameStatsClient` / `PlayerGameEvent` (games-v2 22.0.0). Integral numbers are sent as INT, fractional as DOUBLE. No-ops on iOS and web (`capabilities.gameStats === false`).
+- Android: **Recall API** — `requestRecallAccess()` returns the session id for server-side account linking (`capabilities.recall`). Rejects on iOS and web.
+- `GameEvent` / `GameEventProperties` types.
+
 ## 0.1.1 — 2026-09-14
 
 - Android: the SDK is initialised only when the manifest carries the `com.google.android.gms.games.APP_ID` meta-data. A multi-variant app can link the module everywhere and configure it per variant; variants without an APP_ID (for example an under-13 title that must not use Play Games Services) stay dormant instead of initialising against a missing id.

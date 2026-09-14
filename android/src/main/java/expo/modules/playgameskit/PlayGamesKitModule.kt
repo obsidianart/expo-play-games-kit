@@ -6,17 +6,59 @@ import android.content.pm.PackageManager
 import com.google.android.gms.games.PlayGames
 import com.google.android.gms.games.PlayGamesSdk
 import com.google.android.gms.games.Player
+import com.google.android.gms.games.playergameevent.PlayerGameEvent
 import com.google.android.gms.tasks.Task
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
 
 private class MissingActivityException :
   CodedException("ERR_NO_ACTIVITY: Play Games Services requires a foreground Activity")
 
 private class PlayGamesException(cause: Throwable?) :
   CodedException("ERR_PLAY_GAMES", cause?.message ?: "Play Games Services call failed", cause)
+
+/** One Game Stats event as it arrives from JS: `{ name, properties }`. */
+class GameEventRecord : Record {
+  @Field
+  val name: String = ""
+
+  @Field
+  val properties: Map<String, Any?> = emptyMap()
+
+  /**
+   * JS numbers arrive as Double; the Game Stats schema distinguishes INT
+   * from DOUBLE properties, so an integral value is sent as a long and only a
+   * fractional one as a double. Unsupported value types are skipped rather
+   * than failing the whole event.
+   */
+  fun toPlayerGameEvent(): PlayerGameEvent {
+    val builder = PlayerGameEvent.Builder(name)
+    properties.forEach { (key, value) ->
+      when (value) {
+        is Boolean -> builder.addProperty(key, value)
+        is String -> builder.addProperty(key, value)
+        is Int -> builder.addProperty(key, value.toLong())
+        is Long -> builder.addProperty(key, value)
+        is Float -> addNumber(builder, key, value.toDouble())
+        is Double -> addNumber(builder, key, value)
+        else -> Unit
+      }
+    }
+    return builder.build()
+  }
+
+  private fun addNumber(builder: PlayerGameEvent.Builder, key: String, value: Double) {
+    if (value.isFinite() && value == Math.floor(value) && Math.abs(value) < 9.007199254740992E15) {
+      builder.addProperty(key, value.toLong())
+    } else {
+      builder.addProperty(key, value)
+    }
+  }
+}
 
 class PlayGamesKitModule : Module() {
   override fun definition() = ModuleDefinition {
@@ -31,9 +73,8 @@ class PlayGamesKitModule : Module() {
         "achievementsUI" to true,
         "incrementalAchievements" to true,
         "serverSideAccess" to true,
-        // Planned for v0.2 (Android only)
-        "gameStats" to false,
-        "recall" to false,
+        "gameStats" to true,
+        "recall" to true,
       ),
     )
 
@@ -81,6 +122,28 @@ class PlayGamesKitModule : Module() {
     AsyncFunction("getPlayer") { promise: Promise ->
       val activity = requireActivity()
       PlayGames.getPlayersClient(activity).currentPlayer.bind(promise) { playerMap(it) }
+    }
+
+    // Game Stats API (games-v2 22.0.0+). Events are validated against the
+    // stat schema declared in Play Console and buffered by the SDK; the
+    // record calls themselves return nothing, so they resolve as soon as the
+    // events are handed over. `requestEventsUpload` asks the SDK to flush.
+    AsyncFunction("recordGameEvents") { events: List<GameEventRecord> ->
+      val client = PlayGames.getGameStatsClient(requireActivity())
+      client.recordEvents(events.map { it.toPlayerGameEvent() })
+    }
+
+    AsyncFunction("uploadGameEvents") {
+      PlayGames.getGameStatsClient(requireActivity()).requestEventsUpload()
+    }
+
+    // Recall API: a session id your backend exchanges (with the Play Games
+    // Services REST API) to link or look up the player's Recall tokens, so a
+    // returning player is recognised on a new device before they sign in to
+    // your own identity provider.
+    AsyncFunction("requestRecallAccess") { promise: Promise ->
+      PlayGames.getRecallClient(requireActivity()).requestRecallAccess()
+        .bind(promise) { it.sessionId }
     }
 
     AsyncFunction("requestServerSideAccess") { serverClientId: String, forceRefresh: Boolean, promise: Promise ->
