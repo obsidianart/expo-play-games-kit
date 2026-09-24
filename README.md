@@ -11,7 +11,7 @@ Built for the era of [Google Play Games Level Up](https://play.google.com/consol
 - ✅ Server-side access codes on Android (bring your own identity backend — Play's guidelines don't require Google sign-in)
 - ✅ Config plugin: injects the Play Games `APP_ID` and the Game Center entitlement for you
 - ✅ Honest capability flags — platform-specific features are `false` at runtime, not crashes
-- ✅ Multi-variant safe: the SDK initialises only in variants that carry an `APP_ID`, so an under-13 flavour of the same app never touches Play Games
+- ✅ Multi-variant safe: the SDK initialises only in variants that carry an `APP_ID`, so an under-13 flavour of the same app never touches Play Games — its manifest nodes are stripped, `capabilities` reports everything `false`, and every call is a no-op
 
 ## Play Level Up compliance map
 

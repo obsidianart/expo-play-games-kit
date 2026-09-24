@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 — 2026-09-24
+
+- Android: on a build without the `APP_ID` meta-data every `capabilities` flag is now `false`, and the JS API turns every call into a no-op (auth calls resolve `{ isAuthenticated: false }`, `getPlayer` resolves `null`, achievements and Game Stats resolve silently; `requestServerSideAccess` / `requestRecallAccess` reject). Previously the SDK threw `IllegalStateException: PlayGamesSdk has not been initialized` through the promise.
+
 ## 0.2.1 — 2026-09-24
 
 - Android config plugin: a variant built **without** `androidAppId` now also strips the games SDK's own manifest nodes (`PlayGamesInitProvider`, `GamesResolutionActivity`, `PlayGamesAppShortcutsActivity`) with `tools:node="remove"`. Previously the SDK's ContentProvider still ran at process start and looked up the Play Games service even though the module never initialised it; an under-13 title sharing a codebase with an enrolled one now makes no contact with Play Games at all.

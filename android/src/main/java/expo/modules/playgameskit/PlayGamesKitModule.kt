@@ -66,17 +66,25 @@ class PlayGamesKitModule : Module() {
 
     Events("onAuthenticationChange")
 
-    Constants(
-      "capabilities" to mapOf(
-        "auth" to true,
-        "achievements" to true,
-        "achievementsUI" to true,
-        "incrementalAchievements" to true,
-        "serverSideAccess" to true,
-        "gameStats" to true,
-        "recall" to true,
-      ),
-    )
+    Constants {
+      // A variant without the APP_ID meta-data never initialises the SDK (see
+      // OnCreate), and every Play Games client throws IllegalStateException
+      // when used before initialisation. Report that honestly so the JS side
+      // turns every call into a no-op instead of a rejected promise. When the
+      // context is not available yet, assume the configured case.
+      val configured = appContext.reactContext?.let { hasPlayGamesAppId(it) } ?: true
+      mapOf(
+        "capabilities" to mapOf(
+          "auth" to configured,
+          "achievements" to configured,
+          "achievementsUI" to configured,
+          "incrementalAchievements" to configured,
+          "serverSideAccess" to configured,
+          "gameStats" to configured,
+          "recall" to configured,
+        ),
+      )
+    }
 
     OnCreate {
       // Required by Play Games Services v2 before any client is used. Safe to

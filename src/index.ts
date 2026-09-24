@@ -25,9 +25,20 @@ function resolveId(id: AchievementId): string | null {
   return null;
 }
 
-/** Feature flags for the current platform — see {@link PlayGamesKitCapabilities}. */
+/**
+ * Feature flags for the current platform — see {@link PlayGamesKitCapabilities}.
+ * All flags are also `false` on an Android build that carries no Play Games
+ * `APP_ID` (a variant that deliberately leaves the SDK dormant): every call
+ * below then resolves as a no-op instead of rejecting.
+ */
 export function getCapabilities(): PlayGamesKitCapabilities {
   return PlayGamesKitModule.capabilities;
+}
+
+const NOT_AUTHENTICATED: AuthState = { isAuthenticated: false };
+
+function can(flag: keyof PlayGamesKitCapabilities): boolean {
+  return PlayGamesKitModule.capabilities[flag] === true;
 }
 
 /**
@@ -35,7 +46,10 @@ export function getCapabilities(): PlayGamesKitCapabilities {
  * automatic sign-in at startup; on iOS the GameKit authenticate handler is
  * installed at startup. Neither shows UI from this call.
  */
-export function isAuthenticated(): Promise<AuthState> {
+export async function isAuthenticated(): Promise<AuthState> {
+  if (!can('auth')) {
+    return NOT_AUTHENTICATED;
+  }
   return PlayGamesKitModule.isAuthenticated();
 }
 
@@ -43,30 +57,40 @@ export function isAuthenticated(): Promise<AuthState> {
  * Interactive sign-in. Shows the platform sign-in UI when needed and resolves
  * with the resulting state (never rejects for a user-cancelled sign-in).
  */
-export function signIn(): Promise<AuthState> {
+export async function signIn(): Promise<AuthState> {
+  if (!can('auth')) {
+    return NOT_AUTHENTICATED;
+  }
   return PlayGamesKitModule.signIn();
 }
 
-export function getPlayer(): Promise<PlayerInfo | null> {
+export async function getPlayer(): Promise<PlayerInfo | null> {
+  if (!can('auth')) {
+    return null;
+  }
   return PlayGamesKitModule.getPlayer();
 }
 
 /**
  * Android only: returns a server auth code your backend can exchange for an
  * access token to verify the player's identity (OAuth server client id from
- * the same Play Console games setup). Rejects on iOS and web.
+ * the same Play Console games setup). Rejects on iOS and web, and on an
+ * Android build without an APP_ID.
  */
-export function requestServerSideAccess(
+export async function requestServerSideAccess(
   serverClientId: string,
   forceRefresh = false
 ): Promise<string> {
+  if (!can('serverSideAccess')) {
+    throw new Error('requestServerSideAccess is not available on this build');
+  }
   return PlayGamesKitModule.requestServerSideAccess(serverClientId, forceRefresh);
 }
 
 /** Unlock a standard achievement. No-op if `id` has no entry for this platform. */
 export async function unlockAchievement(id: AchievementId): Promise<void> {
   const achievementId = resolveId(id);
-  if (achievementId === null) {
+  if (achievementId === null || !can('achievements')) {
     return;
   }
   return PlayGamesKitModule.unlockAchievement(achievementId);
@@ -78,7 +102,7 @@ export async function unlockAchievement(id: AchievementId): Promise<void> {
  */
 export async function revealAchievement(id: AchievementId): Promise<void> {
   const achievementId = resolveId(id);
-  if (achievementId === null) {
+  if (achievementId === null || !can('achievements')) {
     return;
   }
   return PlayGamesKitModule.revealAchievement(achievementId);
@@ -95,7 +119,7 @@ export async function incrementAchievement(
   totalSteps = 0
 ): Promise<void> {
   const achievementId = resolveId(id);
-  if (achievementId === null) {
+  if (achievementId === null || !can('achievements')) {
     return;
   }
   return PlayGamesKitModule.incrementAchievement(achievementId, steps, totalSteps);
@@ -112,14 +136,17 @@ export async function setAchievementSteps(
   totalSteps: number
 ): Promise<void> {
   const achievementId = resolveId(id);
-  if (achievementId === null) {
+  if (achievementId === null || !can('achievements')) {
     return;
   }
   return PlayGamesKitModule.setAchievementSteps(achievementId, steps, totalSteps);
 }
 
-/** Show the platform's native achievements UI. */
-export function showAchievements(): Promise<void> {
+/** Show the platform's native achievements UI. No-op where `capabilities.achievementsUI` is false. */
+export async function showAchievements(): Promise<void> {
+  if (!can('achievementsUI')) {
+    return;
+  }
   return PlayGamesKitModule.showAchievements();
 }
 
@@ -132,7 +159,7 @@ export function showAchievements(): Promise<void> {
  * quiet moment (end of a level, app going to background).
  */
 export async function recordGameEvents(events: GameEvent[]): Promise<void> {
-  if (!PlayGamesKitModule.capabilities.gameStats || events.length === 0) {
+  if (!can('gameStats') || events.length === 0) {
     return;
   }
   return PlayGamesKitModule.recordGameEvents(events);
@@ -154,7 +181,7 @@ export function recordProgress(currentProgress: number | string): Promise<void> 
 
 /** Ask the SDK to upload the events recorded so far. No-op off Android. */
 export async function uploadGameEvents(): Promise<void> {
-  if (!PlayGamesKitModule.capabilities.gameStats) {
+  if (!can('gameStats')) {
     return;
   }
   return PlayGamesKitModule.uploadGameEvents();
@@ -164,9 +191,13 @@ export async function uploadGameEvents(): Promise<void> {
  * Android only: a Recall session id. Send it to your backend, which calls the
  * Play Games Services REST API (`recall.linkPersona` / `recall.retrieveTokens`)
  * to tie the Play Games player to your own account — that is what makes
- * "seamless restore" seamless on a new device. Rejects on iOS and web.
+ * "seamless restore" seamless on a new device. Rejects on iOS and web, and
+ * on an Android build without an APP_ID.
  */
-export function requestRecallAccess(): Promise<string> {
+export async function requestRecallAccess(): Promise<string> {
+  if (!can('recall')) {
+    throw new Error('requestRecallAccess is not available on this build');
+  }
   return PlayGamesKitModule.requestRecallAccess();
 }
 
