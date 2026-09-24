@@ -1,6 +1,6 @@
 {
   "name": "expo-play-games-kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cross-platform game services for Expo: Google Play Games Services v2 (Android) + Game Center (iOS). Auth, achievements, and the Google Play Level Up compliance surface (Game Stats, Recall).",
   "main": "build/index.js",
   "types": "build/index.d.ts",

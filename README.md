@@ -52,6 +52,8 @@ npx expo install expo-play-games-kit
 
 The plugin adds the `com.google.android.gms.games.APP_ID` meta-data (as a string resource — a raw numeric manifest value crashes the SDK) and the `com.apple.developer.game-center` entitlement. Set `"iosGameCenterEntitlement": false` if you manage entitlements yourself.
 
+For a variant that must **not** use Play Games (for example an under-13 flavour of a multi-brand app), keep the plugin in the config but omit `androidAppId`: besides leaving the module dormant, the plugin then removes the games SDK's own manifest nodes (`PlayGamesInitProvider` and its two activities) with `tools:node="remove"`, so the process never contacts the Play Games service at all. Pair it with `"iosGameCenterEntitlement": false`.
+
 On iOS, also enable the Game Center capability for your app in App Store Connect and define your achievements there; on Android, define them in Play Console. The two stores issue **different achievement ids** — see the id mapping below.
 
 ## Usage

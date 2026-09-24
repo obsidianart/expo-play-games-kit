@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name           = 'PlayGamesKit'
-  s.version        = '0.2.0'
+  s.version        = '0.2.1'
   s.summary        = 'Game Center integration for the expo-play-games-kit module'
   s.description    = 'iOS (GameKit / Game Center) half of expo-play-games-kit: authentication, achievements, and the native achievements UI.'
   s.author         = 'Stefano Solinas'

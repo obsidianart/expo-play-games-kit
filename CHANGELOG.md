@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-09-24
+
+- Android config plugin: a variant built **without** `androidAppId` now also strips the games SDK's own manifest nodes (`PlayGamesInitProvider`, `GamesResolutionActivity`, `PlayGamesAppShortcutsActivity`) with `tools:node="remove"`. Previously the SDK's ContentProvider still ran at process start and looked up the Play Games service even though the module never initialised it; an under-13 title sharing a codebase with an enrolled one now makes no contact with Play Games at all.
+
 ## 0.2.0 — 2026-09-14
 
 - Android: **Game Stats API** — `recordGameEvent`, `recordGameEvents`, `recordProgress`, `uploadGameEvents` over `PlayGames.getGameStatsClient` / `PlayerGameEvent` (games-v2 22.0.0). Integral numbers are sent as INT, fractional as DOUBLE. No-ops on iOS and web (`capabilities.gameStats === false`).
