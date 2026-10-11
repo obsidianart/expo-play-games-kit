@@ -61,6 +61,8 @@ class GameEventRecord : Record {
 }
 
 class PlayGamesKitModule : Module() {
+  private var lastAuthState: Map<String, Any?>? = null
+
   override fun definition() = ModuleDefinition {
     Name("PlayGamesKit")
 
@@ -70,12 +72,13 @@ class PlayGamesKitModule : Module() {
       // A variant without the APP_ID meta-data never initialises the SDK (see
       // OnCreate), and every Play Games client throws IllegalStateException
       // when used before initialisation. Report that honestly so the JS side
-      // turns every call into a no-op instead of a rejected promise. When the
+      // gates unsupported calls before they reach the SDK. When the
       // context is not available yet, assume the configured case.
       val configured = appContext.reactContext?.let { hasPlayGamesAppId(it) } ?: true
       mapOf(
         "capabilities" to mapOf(
           "auth" to configured,
+          "leaderboards" to configured,
           "achievements" to configured,
           "achievementsUI" to configured,
           "incrementalAchievements" to configured,
@@ -95,7 +98,16 @@ class PlayGamesKitModule : Module() {
       // (the config plugin adds the meta-data per variant), and an app aimed
       // at under-13 players must not start Play Games Services at all.
       appContext.reactContext?.let { context ->
-        if (hasPlayGamesAppId(context)) PlayGamesSdk.initialize(context)
+        if (hasPlayGamesAppId(context)) {
+          PlayGamesSdk.initialize(context)
+          appContext.currentActivity?.let { refreshAuthentication(it) }
+        }
+      }
+    }
+
+    OnActivityEntersForeground {
+      appContext.reactContext?.let { context ->
+        if (hasPlayGamesAppId(context)) appContext.currentActivity?.let { refreshAuthentication(it) }
       }
     }
 
@@ -121,7 +133,7 @@ class PlayGamesKitModule : Module() {
             resolveAuthState(activity, promise, emitEvent = true)
           } else {
             val state = mapOf("isAuthenticated" to false)
-            sendEvent("onAuthenticationChange", state)
+            emitAuthentication(state)
             promise.resolve(state)
           }
         }
@@ -129,7 +141,12 @@ class PlayGamesKitModule : Module() {
 
     AsyncFunction("getPlayer") { promise: Promise ->
       val activity = requireActivity()
-      PlayGames.getPlayersClient(activity).currentPlayer.bind(promise) { playerMap(it) }
+      PlayGames.getGamesSignInClient(activity).isAuthenticated
+        .addOnSuccessListener { auth ->
+          if (!auth.isAuthenticated) promise.resolve(null)
+          else PlayGames.getPlayersClient(activity).currentPlayer.bind(promise) { playerMap(it) }
+        }
+        .addOnFailureListener { promise.reject(PlayGamesException(it)) }
     }
 
     // Game Stats API (games-v2 22.0.0+). Events are validated against the
@@ -185,6 +202,21 @@ class PlayGamesKitModule : Module() {
         .bind(promise) { null }
     }
 
+    AsyncFunction("submitScore") { leaderboardId: String, score: Long, promise: Promise ->
+      PlayGames.getLeaderboardsClient(requireActivity()).submitScoreImmediate(leaderboardId, score)
+        .bind(promise) { null }
+    }
+
+    AsyncFunction("showLeaderboard") { leaderboardId: String?, promise: Promise ->
+      val activity = requireActivity()
+      val client = PlayGames.getLeaderboardsClient(activity)
+      val intentTask = if (leaderboardId == null) client.allLeaderboardsIntent else client.getLeaderboardIntent(leaderboardId)
+      intentTask.addOnSuccessListener { intent ->
+        activity.startActivityForResult(intent, RC_ACHIEVEMENT_UI)
+        promise.resolve(null)
+      }.addOnFailureListener { promise.reject(PlayGamesException(it)) }
+    }
+
     AsyncFunction("showAchievements") { promise: Promise ->
       val activity = requireActivity()
       PlayGames.getAchievementsClient(activity).achievementsIntent
@@ -193,6 +225,25 @@ class PlayGamesKitModule : Module() {
           promise.resolve(null)
         }
         .addOnFailureListener { promise.reject(PlayGamesException(it)) }
+    }
+  }
+
+  private fun emitAuthentication(state: Map<String, Any?>) {
+    if (lastAuthState != state) {
+      lastAuthState = state
+      sendEvent("onAuthenticationChange", state)
+    }
+  }
+
+  private fun refreshAuthentication(activity: Activity) {
+    PlayGames.getGamesSignInClient(activity).isAuthenticated.addOnSuccessListener { result ->
+      if (!result.isAuthenticated) {
+        emitAuthentication(mapOf("isAuthenticated" to false))
+      } else {
+        PlayGames.getPlayersClient(activity).currentPlayer
+          .addOnSuccessListener { player -> emitAuthentication(mapOf("isAuthenticated" to true, "player" to playerMap(player))) }
+          .addOnFailureListener { emitAuthentication(mapOf("isAuthenticated" to true)) }
+      }
     }
   }
 
@@ -212,13 +263,13 @@ class PlayGamesKitModule : Module() {
     PlayGames.getPlayersClient(activity).currentPlayer
       .addOnSuccessListener { player ->
         val state = mapOf("isAuthenticated" to true, "player" to playerMap(player))
-        if (emitEvent) sendEvent("onAuthenticationChange", state)
+        if (emitEvent) emitAuthentication(state)
         promise.resolve(state)
       }
       .addOnFailureListener {
         // Authenticated but the player profile could not be loaded — still authenticated.
         val state = mapOf("isAuthenticated" to true)
-        if (emitEvent) sendEvent("onAuthenticationChange", state)
+        if (emitEvent) emitAuthentication(state)
         promise.resolve(state)
       }
   }

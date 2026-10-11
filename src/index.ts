@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import {
   AchievementId,
+  LeaderboardId,
   AuthState,
   GameEvent,
   GameEventProperties,
@@ -28,14 +29,39 @@ function resolveId(id: AchievementId): string | null {
 /**
  * Feature flags for the current platform — see {@link PlayGamesKitCapabilities}.
  * All flags are also `false` on an Android build that carries no Play Games
- * `APP_ID` (a variant that deliberately leaves the SDK dormant): every call
- * below then resolves as a no-op instead of rejecting.
+ * `APP_ID` (a variant that deliberately leaves the SDK dormant): achievement and stats calls
+ * become no-ops; Recall and server access still reject.
  */
 export function getCapabilities(): PlayGamesKitCapabilities {
   return PlayGamesKitModule.capabilities;
 }
 
 const NOT_AUTHENTICATED: AuthState = { isAuthenticated: false };
+let pendingSignIn: Promise<AuthState> | undefined;
+const achievementQueues = new Map<string, Promise<void>>();
+
+function validateSteps(steps: number, totalSteps: number, needsTotal: boolean): void {
+  if (!Number.isInteger(steps) || steps < 0 || steps > 2147483647) {
+    throw new RangeError('steps must be an integer between 0 and 2147483647');
+  }
+  if (needsTotal && (!Number.isInteger(totalSteps) || totalSteps <= 0 || totalSteps > 2147483647)) {
+    throw new RangeError('totalSteps must be a positive 32-bit integer');
+  }
+}
+
+// GameKit increments are read/modify/write operations. Serialize all writes
+// for the same achievement so two callers cannot overwrite each other's work.
+function writeAchievement(id: string, operation: () => Promise<void>): Promise<void> {
+  if (Platform.OS !== 'ios') return operation();
+  const previous = achievementQueues.get(id) ?? Promise.resolve();
+  const result = previous.then(operation);
+  const settled = result.catch(() => {});
+  achievementQueues.set(id, settled);
+  settled.then(() => {
+    if (achievementQueues.get(id) === settled) achievementQueues.delete(id);
+  });
+  return result;
+}
 
 function can(flag: keyof PlayGamesKitCapabilities): boolean {
   return PlayGamesKitModule.capabilities[flag] === true;
@@ -61,7 +87,14 @@ export async function signIn(): Promise<AuthState> {
   if (!can('auth')) {
     return NOT_AUTHENTICATED;
   }
-  return PlayGamesKitModule.signIn();
+  if (!pendingSignIn) {
+    pendingSignIn = Promise.resolve()
+      .then(() => PlayGamesKitModule.signIn())
+      .finally(() => {
+        pendingSignIn = undefined;
+      });
+  }
+  return pendingSignIn;
 }
 
 export async function getPlayer(): Promise<PlayerInfo | null> {
@@ -93,7 +126,7 @@ export async function unlockAchievement(id: AchievementId): Promise<void> {
   if (achievementId === null || !can('achievements')) {
     return;
   }
-  return PlayGamesKitModule.unlockAchievement(achievementId);
+  return writeAchievement(achievementId, () => PlayGamesKitModule.unlockAchievement(achievementId));
 }
 
 /**
@@ -122,7 +155,11 @@ export async function incrementAchievement(
   if (achievementId === null || !can('achievements')) {
     return;
   }
-  return PlayGamesKitModule.incrementAchievement(achievementId, steps, totalSteps);
+  validateSteps(steps, totalSteps, Platform.OS === 'ios');
+  if (steps === 0) return;
+  return writeAchievement(achievementId, () =>
+    PlayGamesKitModule.incrementAchievement(achievementId, steps, totalSteps)
+  );
 }
 
 /**
@@ -139,7 +176,10 @@ export async function setAchievementSteps(
   if (achievementId === null || !can('achievements')) {
     return;
   }
-  return PlayGamesKitModule.setAchievementSteps(achievementId, steps, totalSteps);
+  validateSteps(steps, totalSteps, true);
+  return writeAchievement(achievementId, () =>
+    PlayGamesKitModule.setAchievementSteps(achievementId, steps, totalSteps)
+  );
 }
 
 /** Show the platform's native achievements UI. No-op where `capabilities.achievementsUI` is false. */
@@ -209,6 +249,22 @@ export function addAuthenticationListener(listener: (state: AuthState) => void):
   remove(): void;
 } {
   return PlayGamesKitModule.addListener('onAuthenticationChange', listener);
+}
+
+/** Submit an integer score in the units configured in each store. */
+export async function submitScore(id: LeaderboardId, score: number): Promise<void> {
+  const leaderboardId = resolveId(id);
+  if (leaderboardId === null || !can('leaderboards')) return;
+  if (!Number.isSafeInteger(score)) throw new RangeError('score must be a safe integer');
+  return PlayGamesKitModule.submitScore(leaderboardId, score);
+}
+
+/** Show one leaderboard, or all leaderboards when no ID is supplied. */
+export async function showLeaderboard(id?: LeaderboardId): Promise<void> {
+  if (!can('leaderboards')) return;
+  const leaderboardId = id === undefined ? null : resolveId(id);
+  if (id !== undefined && leaderboardId === null) return;
+  return PlayGamesKitModule.showLeaderboard(leaderboardId);
 }
 
 export default PlayGamesKitModule;

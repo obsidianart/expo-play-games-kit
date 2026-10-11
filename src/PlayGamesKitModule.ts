@@ -12,6 +12,8 @@ declare class PlayGamesKitModule extends NativeModule<PlayGamesKitModuleEvents> 
   capabilities: PlayGamesKitCapabilities;
   isAuthenticated(): Promise<AuthState>;
   signIn(): Promise<AuthState>;
+  submitScore(leaderboardId: string, score: number): Promise<void>;
+  showLeaderboard(leaderboardId: string | null): Promise<void>;
   getPlayer(): Promise<PlayerInfo | null>;
   requestServerSideAccess(serverClientId: string, forceRefresh: boolean): Promise<string>;
   unlockAchievement(achievementId: string): Promise<void>;

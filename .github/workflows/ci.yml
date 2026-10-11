@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run lint -- --max-warnings 0
+      - run: npm run test:unit
 
   android:
     runs-on: ubuntu-latest
@@ -39,3 +40,26 @@ jobs:
         working-directory: example
       - run: ./gradlew :expo-play-games-kit:compileDebugKotlin
         working-directory: example/android
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci
+        working-directory: example
+      - run: npx expo prebuild -p ios --no-install
+        working-directory: example
+      - run: pod install
+        working-directory: example/ios
+      - name: Compile iOS example without signing
+        run: >-
+          xcodebuild -workspace expoplaygameskitexample.xcworkspace
+          -scheme expoplaygameskitexample -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
+        working-directory: example/ios

@@ -2,7 +2,7 @@ import ExpoModulesCore
 import GameKit
 
 public class PlayGamesKitModule: Module {
-  private var pendingSignInPromise: Promise?
+  private var pendingSignInPromises: [Promise] = []
   private var pendingAuthViewController: UIViewController?
   private let gameCenterDelegate = GameCenterDismissDelegate()
 
@@ -14,11 +14,12 @@ public class PlayGamesKitModule: Module {
     Constants([
       "capabilities": [
         "auth": true,
+        "leaderboards": true,
         "achievements": true,
         "achievementsUI": true,
         "incrementalAchievements": true,
         "serverSideAccess": false,
-        // Android-only APIs, planned for v0.2
+        // Android-only APIs
         "gameStats": false,
         "recall": false,
       ]
@@ -39,10 +40,14 @@ public class PlayGamesKitModule: Module {
         promise.resolve(self.currentAuthState())
         return
       }
-      self.pendingSignInPromise = promise
+      self.pendingSignInPromises.append(promise)
+      guard self.pendingSignInPromises.count == 1 else { return }
       if let viewController = self.pendingAuthViewController {
         self.pendingAuthViewController = nil
-        self.present(viewController)
+        if !self.present(viewController) {
+          self.pendingAuthViewController = viewController
+          self.rejectPendingSignIn()
+        }
       } else {
         // Re-installing the handler makes GameKit retry authentication.
         self.installAuthHandler()
@@ -92,11 +97,33 @@ public class PlayGamesKitModule: Module {
       self.report(achievementId: achievementId, percent: percent, promise: promise)
     }
 
+    AsyncFunction("submitScore") { (leaderboardId: String, score: Int, promise: Promise) in
+      GKLeaderboard.submitScore(score, context: 0, player: GKLocalPlayer.local, leaderboardIDs: [leaderboardId]) { error in
+        if let error = error { promise.reject("ERR_GAME_CENTER", error.localizedDescription) }
+        else { promise.resolve(nil) }
+      }
+    }
+
+    AsyncFunction("showLeaderboard") { (leaderboardId: String?, promise: Promise) in
+      let viewController: GKGameCenterViewController
+      if let leaderboardId = leaderboardId {
+        viewController = GKGameCenterViewController(leaderboardID: leaderboardId, playerScope: .global, timeScope: .allTime)
+      } else {
+        viewController = GKGameCenterViewController(state: .leaderboards)
+      }
+      viewController.gameCenterDelegate = self.gameCenterDelegate
+      if self.present(viewController) { promise.resolve(nil) }
+      else { promise.reject("ERR_NO_PRESENTER", "Game Center needs an active screen with no presentation in progress.") }
+    }.runOnQueue(.main)
+
     AsyncFunction("showAchievements") { (promise: Promise) in
       let viewController = GKGameCenterViewController(state: .achievements)
       viewController.gameCenterDelegate = self.gameCenterDelegate
-      self.present(viewController)
-      promise.resolve(nil)
+      if self.present(viewController) {
+        promise.resolve(nil)
+      } else {
+        promise.reject("ERR_NO_PRESENTER", "Game Center needs an active screen with no presentation in progress.")
+      }
     }.runOnQueue(.main)
   }
 
@@ -105,8 +132,11 @@ public class PlayGamesKitModule: Module {
       guard let self = self else { return }
       DispatchQueue.main.async {
         if let viewController = viewController {
-          if self.pendingSignInPromise != nil {
-            self.present(viewController)
+          if !self.pendingSignInPromises.isEmpty {
+            if !self.present(viewController) {
+              self.pendingAuthViewController = viewController
+              self.rejectPendingSignIn()
+            }
           } else {
             self.pendingAuthViewController = viewController
           }
@@ -114,10 +144,10 @@ public class PlayGamesKitModule: Module {
         }
         let state = self.currentAuthState(errorMessage: error?.localizedDescription)
         self.sendEvent("onAuthenticationChange", state)
-        if let promise = self.pendingSignInPromise {
-          self.pendingSignInPromise = nil
-          promise.resolve(state)
-        }
+        self.pendingAuthViewController = nil
+        let promises = self.pendingSignInPromises
+        self.pendingSignInPromises.removeAll()
+        for promise in promises { promise.resolve(state) }
       }
     }
   }
@@ -154,11 +184,22 @@ public class PlayGamesKitModule: Module {
     }
   }
 
-  private func present(_ viewController: UIViewController) {
-    guard let presenter = appContext?.utilities?.currentViewController() else {
-      return
+  private func rejectPendingSignIn() {
+    let promises = pendingSignInPromises
+    pendingSignInPromises.removeAll()
+    for promise in promises {
+      promise.reject("ERR_NO_PRESENTER", "Game Center needs an active screen with no presentation in progress. Retry when the app is visible.")
     }
+  }
+
+  private func present(_ viewController: UIViewController) -> Bool {
+    guard let presenter = appContext?.utilities?.currentViewController(),
+          presenter.viewIfLoaded?.window != nil,
+          !presenter.isBeingDismissed,
+          !presenter.isBeingPresented,
+          presenter.presentedViewController == nil else { return false }
     presenter.present(viewController, animated: true)
+    return true
   }
 }
 

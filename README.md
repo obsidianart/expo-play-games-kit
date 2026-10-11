@@ -4,6 +4,8 @@
 [![CI](https://github.com/obsidianart/expo-play-games-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/obsidianart/expo-play-games-kit/actions/workflows/ci.yml)
 [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+![Expo Play Games Kit](docs/social-preview.png)
+
 **Google Play Games achievements and Apple Game Center for Expo, through one TypeScript API.**
 
 Sign players in, unlock achievements, sync progress, and open the native achievements screen. On Android, also send Game Stats and request Recall session IDs for your backend.
@@ -18,12 +20,13 @@ Built while adding game services to Imagzle and Imagzle Minigames. Includes an E
 |---|---|---|---|
 | Platform authentication and player profile | Play Games Services v2 | Game Center | Unavailable |
 | Standard and incremental achievements | Yes | Yes | No-op |
+| Leaderboard score submission and native UI (next release) | Yes | Yes | No-op |
 | Native achievements screen | Yes | Yes | No-op |
 | Game Stats events and progression | Yes | No-op | No-op |
 | Recall session ID | Yes; backend linking required | Unavailable | Unavailable |
 | Server-side access code | Yes; backend exchange required | Unavailable | Unavailable |
 
-Leaderboards, PGS Saved Games, and Play Billing reward fulfillment are **not included**. Recall does not save or restore game progress by itself. Use your own backend for cloud saves and account linking.
+PGS Saved Games and Play Billing reward fulfillment are **not included**. Recall does not save or restore game progress by itself. Use your own backend for cloud saves and account linking.
 
 ## Requirements and validation
 
@@ -36,8 +39,11 @@ Leaderboards, PGS Saved Games, and Play Billing reward fulfillment are **not inc
 |---|---|
 | Library development dependencies | Expo 57 / React Native 0.82 |
 | Included example dependencies | Expo 57 / React Native 0.86 |
-| CI | TypeScript build, ESLint, Android Kotlin compilation |
-| iOS builds and device behavior | Not covered by CI; verify in your app |
+| CI | TypeScript build, ESLint, regression tests, Android Kotlin compilation |
+| Local native build checks (October 12, 2026) | Android Kotlin and iOS simulator example compiled successfully |
+| iOS builds | Simulator compilation job added to CI |
+| iOS device report | Maintainer reports login and achievements working on October 12, 2026, before these changes; exact device/OS not recorded |
+| New leaderboard and concurrency changes | Require fresh device testing; the earlier report does not validate these changes |
 
 These are the repository's configured versions, not a promise of support for every Expo/RN combination. See [package.json](package.json) and [example/package.json](example/package.json) for exact versions. When reporting a problem, include your versions, platform, and build type.
 
@@ -117,6 +123,22 @@ export async function unlockFirstPuzzle() {
 
 Android attempts automatic sign-in at module startup; iOS installs GameKit's authentication handler. `isAuthenticated()` reads state without opening UI. `signIn()` can show platform UI; a cancelled sign-in resolves with the resulting state.
 
+## Leaderboards (next release)
+
+The following APIs are in the repository; the published npm 0.2.2 package does not include them yet. Use the example against the local checkout to test them.
+
+```ts
+const leaderboard = { android: 'YOUR_PLAY_LEADERBOARD_ID', ios: 'high_score' };
+if (PlayGamesKit.getCapabilities().leaderboards) {
+  await PlayGamesKit.submitScore(leaderboard, 42);
+  await PlayGamesKit.showLeaderboard(leaderboard);
+  // Or show all leaderboards:
+  await PlayGamesKit.showLeaderboard();
+}
+```
+
+Create the leaderboards in each store first. Keep score units and sorting consistent across stores (for example, milliseconds with lower scores winning). Scores must be safe JavaScript integers. Submission uses the store's configured ranking behavior. This API does not load score pages or implement recurring-leaderboard management. Web and builds without the capability are no-ops.
+
 ## Sync achievement progress
 
 If your game already tracks progress, send an absolute value. Re-sending the same progress is safe:
@@ -128,6 +150,8 @@ await PlayGamesKit.setAchievementSteps(
   100,
 );
 ```
+
+The next release serializes iOS achievement writes per ID, including increments, and shares concurrent sign-in requests. Prefer absolute progress when syncing your own save data; local serialization cannot prevent conflicts across devices.
 
 The Android achievement must be configured for 100 steps. iOS uses the total to convert steps to a percentage. Neither platform's achievements should replace your game's own save data.
 
@@ -169,6 +193,8 @@ Server access codes similarly require your backend to exchange the code. Do not 
 
 | Function | Android | iOS | Notes |
 |---|---|---|---|
+| `submitScore(id, score)` | ✅ | ✅ | Next release; safe integer in configured score units |
+| `showLeaderboard(id?)` | ✅ | ✅ | Next release; omit ID for all leaderboards |
 | `getCapabilities()` | ✅ | ✅ | Synchronous feature flags |
 | `isAuthenticated()` | ✅ | ✅ | Never shows UI |
 | `signIn()` | ✅ | ✅ | Shows platform UI when needed |
@@ -214,6 +240,7 @@ The plugin strips the PGS SDK's initialization provider and related activities f
 | Android capabilities are all false | Set the correct `androidAppId`, apply the plugin, and rebuild. |
 | Android sign-in fails | Package name, actual build certificate SHA-1, linked PGS credentials, test account, and configuration publication. |
 | Achievement does not appear | Correct platform ID, authenticated player, standard versus incremental type, and store configuration. |
+| `ERR_NO_PRESENTER` on iOS | Wait until the app has a visible screen and any current presentation has finished, then retry. |
 | Game Stats never change | Published event schema, exact property names/types, stat aggregation, authentication, and upload. |
 | iOS build or sign-in fails | iOS 16.4+ target, bundle ID, Game Center capability, signing profile, and a Game Center account on the device. |
 | Works locally but fails after installing from Play | Check the Play app signing certificate's PGS credentials. |
@@ -244,6 +271,7 @@ Check Google's [current enrollment rules](https://support.google.com/googleplay/
 npm ci
 npm run build
 npm run lint -- --max-warnings 0
+npm run test:unit
 ```
 
 If this helps your game, a GitHub star helps other developers find it. Reports from real integrations are especially useful.

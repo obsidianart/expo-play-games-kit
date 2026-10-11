@@ -1,3 +1,13 @@
+# Unreleased
+
+- Add cross-platform `submitScore` and `showLeaderboard` APIs and a leaderboard capability flag.
+- Share concurrent sign-in requests; reject iOS presentation failures with `ERR_NO_PRESENTER`.
+- Serialize iOS achievement writes per ID and validate integer step counts at the JS boundary.
+- Refresh Android authentication state at startup/foreground and emit changes.
+- Remove stale APP_ID/removal markers when switching Android plugin variants.
+- Add regression tests, iOS simulator compilation CI, example diagnostics and leaderboard controls.
+- Document the maintainer's successful iOS login/achievement test of the preceding version.
+
 # Changelog
 
 ## 0.2.2 — 2026-09-24

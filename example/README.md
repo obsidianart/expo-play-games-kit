@@ -29,6 +29,8 @@ npm run ios
 
 Expo Go cannot load this native module. Rebuild after changes to plugin options. The example uses the parent library via Metro configuration and Expo module autolinking.
 
+For leaderboard testing, replace `DEMO_LEADERBOARD` in `App.tsx` with real IDs and configure identical score units/sorting in both stores. These APIs are not part of npm 0.2.2 yet.
+
 ## What to check
 
 - Sign in and confirm that the player name appears.
@@ -36,6 +38,7 @@ Expo Go cannot load this native module. Rebuild after changes to plugin options.
 - Set incremental progress to 5/10 twice: the second call should not double the progress.
 - On Android, record an event, send progression, and request upload. Confirm the resulting stats separately in the platform; the result label only confirms the call resolved.
 - Request a Recall session on Android. The UI only confirms a session was returned; no account linking or cloud restore happens without your backend.
+- Submit score 42 and open the leaderboard to verify it was stored.
 - Try cancelling sign-in and reopening the app.
 
 ## Capture a demo

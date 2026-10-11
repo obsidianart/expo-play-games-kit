@@ -5,6 +5,8 @@
  */
 export type PlayGamesKitCapabilities = {
   auth: boolean;
+  /** Score submission and native leaderboard UI. */
+  leaderboards: boolean;
   achievements: boolean;
   achievementsUI: boolean;
   incrementalAchievements: boolean;
@@ -55,3 +57,6 @@ export type PlayGamesKitModuleEvents = {
  * branching.
  */
 export type AchievementId = string | { android?: string; ios?: string };
+
+/** Store-specific leaderboard identifiers. */
+export type LeaderboardId = AchievementId;

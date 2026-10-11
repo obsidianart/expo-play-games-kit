@@ -11,6 +11,7 @@ const NOT_AUTHENTICATED: AuthState = { isAuthenticated: false };
 class PlayGamesKitModule extends NativeModule<PlayGamesKitModuleEvents> {
   capabilities: PlayGamesKitCapabilities = {
     auth: false,
+    leaderboards: false,
     achievements: false,
     achievementsUI: false,
     incrementalAchievements: false,
@@ -34,6 +35,10 @@ class PlayGamesKitModule extends NativeModule<PlayGamesKitModuleEvents> {
   async requestServerSideAccess(): Promise<string> {
     throw new Error('requestServerSideAccess is not available on web');
   }
+
+  async submitScore(): Promise<void> {}
+
+  async showLeaderboard(): Promise<void> {}
 
   async unlockAchievement(): Promise<void> {}
 

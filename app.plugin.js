@@ -46,6 +46,11 @@ const withPlayGamesKit = (config, props = {}) => {
     });
     config = withAndroidManifest(config, (config) => {
       const application = AndroidConfig.Manifest.getMainApplicationOrThrow(config.modResults);
+      for (const [kind, names] of Object.entries(DORMANT_MANIFEST_NODES)) {
+        application[kind] = (application[kind] ?? []).filter(
+          (item) => !(names.includes(item.$['android:name']) && item.$['tools:node'] === 'remove'),
+        );
+      }
       application['meta-data'] = (application['meta-data'] ?? []).filter(
         (item) => item.$['android:name'] !== APP_ID_META_DATA,
       );
@@ -73,6 +78,9 @@ const withPlayGamesKit = (config, props = {}) => {
       manifest.$ = manifest.$ ?? {};
       manifest.$['xmlns:tools'] = manifest.$['xmlns:tools'] ?? 'http://schemas.android.com/tools';
       const application = AndroidConfig.Manifest.getMainApplicationOrThrow(config.modResults);
+      application['meta-data'] = (application['meta-data'] ?? []).filter(
+        (item) => item.$['android:name'] !== APP_ID_META_DATA,
+      );
       for (const [kind, names] of Object.entries(DORMANT_MANIFEST_NODES)) {
         application[kind] = (application[kind] ?? []).filter((item) => !names.includes(item.$['android:name']));
         for (const name of names) {
