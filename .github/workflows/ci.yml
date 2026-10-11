@@ -33,6 +33,8 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: example
+      - run: npx tsc --noEmit
+        working-directory: example
       - run: npx expo prebuild -p android --no-install
         working-directory: example
       - run: ./gradlew :expo-play-games-kit:compileDebugKotlin
